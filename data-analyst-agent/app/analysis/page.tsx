@@ -2,123 +2,20 @@
 "use client";
 import { v4 as uuidv4 } from "uuid";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Send,
-  ChevronDown,
-  Paperclip,
-  ChartLine,
-  ChartArea,
-  FileInput,
-  MessageCircleQuestion,
-  ChartColumnBig,
-} from "lucide-react";
-import FilePreview from "@/components/FilePreview";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ChartColumnBig } from "lucide-react";
+import Chat from '@/components/Chat';
+import QueryDetails from '@/components/QueryDetails';
 import { ChartRenderer } from "@/components/ChartRenderer";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type { ChartData } from "@/types/chart";
+import type { Message, FileUpload, APIResponse, AnalyzeAPIResponse } from '@/types/chat';
+import { models, regions } from '@/constants';
+
 import TopNavBar from "@/components/TopNavBar";
-import {
-  readFileAsText,
-  readFileAsBase64,
-  readFileAsPDFText,
-} from "@/utils/fileHandling";
+import { readFileAsText, readFileAsBase64, readFileAsPDFText } from "@/utils/fileHandling";
 
-// Types
-
-interface ToolUse {
-  toolUseId: string;
-  name: string;
-  input: {
-    [key: string]: any;
-  };
-}
-
-interface ToolResult {
-  toolUseId: string;
-  content: [{text: string;}];
-}
-
-interface ContentBlock {
-  text?: string;
-  toolUse?: ToolUse;
-  toolResult?: ToolResult;
-}
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: ContentBlock[];
-  hasToolUse?: boolean;
-  file?: {
-    base64: string;
-    fileName: string;
-    mediaType: string;
-    isText?: boolean;
-  };
-  chartData?: ChartData;
-  sqlQuery?: string;
-}
-
-type Model = {
-  id: string;
-  name: string;
-};
-
-interface FileUpload {
-  base64: string;
-  fileName: string;
-  mediaType: string;
-  isText?: boolean;
-  fileSize?: number;
-}
-
-const models: Model[] = [
-  { id: "anthropic.claude-3-haiku-20240307-v1:0", name: "Claude 3 Haiku" },
-  { id: "anthropic.claude-3-5-sonnet-20240620-v1:0", name: "Claude 3.5 Sonnet" },
-];
-
-interface APIResponse {
-  content: string;
-  hasToolUse: boolean;
-  toolUse?: {
-    type: "tool_use";
-    id: string;
-    name: string;
-    input: ChartData;
-  };
-  chartData?: ChartData;
-}
-
-interface AnalyzeAPIResponse {
-  query?: string;
-  explanation?: string;
-  result?: any[];
-  content: string;
-  toolUseId?: string;
-  toolName?: string;
-}
-
-interface MessageComponentProps {
-  message: Message;
-}
 
 const SafeChartRenderer: React.FC<{ data: ChartData }> = ({ data }) => {
   try {
@@ -139,58 +36,6 @@ const SafeChartRenderer: React.FC<{ data: ChartData }> = ({ data }) => {
   }
 };
 
-const MessageComponent: React.FC<MessageComponentProps> = ({ message }) => {
-  const hasText = (content: ContentBlock): content is { text: string } => {
-    return 'text' in content && typeof content.text === 'string';
-  };
-
-  const textContent = message.content.find(hasText);
-  if (!textContent) {
-    return null;
-  }
-
-  return (
-    <div className="flex items-start gap-2">
-      {message.role === "assistant" && (
-        <Avatar className="w-8 h-8 border">
-          <AvatarImage src="/bedrock-logo.png" alt="AI Assistant Avatar" />
-          <AvatarFallback>AI</AvatarFallback>
-        </Avatar>
-      )}
-      <div
-        className={`flex flex-col max-w-[75%] ${
-          message.role === "user" ? "ml-auto" : ""
-        }`}
-      >
-        <div
-          className={`p-3 rounded-md text-base ${
-            message.role === "user"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted border"
-          }`}
-        >
-          {message.role === "assistant" ? (
-            <div className="flex flex-col gap-2">
-              {message.hasToolUse && (
-                <Badge variant="secondary" className="inline-flex px-0">
-                  <ChartLine className="w-4 h-4 mr-1" /> Generated Chart
-                </Badge>
-              )}
-              <span>{message.content[0].text}</span>
-            </div>
-          ) : (
-            <span>{message.content[0].text}</span>
-          )}
-        </div>
-        {message.file && (
-          <div className="mt-1.5">
-            <FilePreview file={message.file} size="small" />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
 
 const ChartPagination = ({
   total,
@@ -230,22 +75,13 @@ export default function AIChat() {
   const [isUploading, setIsUploading] = useState(false);
   const [currentChartIndex, setCurrentChartIndex] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [isScrollLocked, setIsScrollLocked] = useState(false);
+  //const [isScrollLocked, setIsScrollLocked] = useState(false);
 
   const [queryDetails, setQueryDetails] = useState<AnalyzeAPIResponse[]>([]);
-  const [thinkingMessage, setThinkingMessage] = useState<Message | null>(null);
-
+  const [isThinking, setIsThinking] = useState(false);
 
   const [currentQueryIndex, setCurrentQueryIndex] = useState(0);
   const queryContentRef = useRef<HTMLDivElement>(null);
-  
-  const regions = [
-    { id: "us-east-1", name: "US East (N. Virginia)" },
-    { id: "us-west-2", name: "US West (Oregon)" },
-    { id: "ap-northeast-1", name: "Asia (Tokyo)" },
-    { id: "ap-northeast-2", name: "Asia (Seoul)" },
-    { id: "eu-central-1", name: "Europe (Frankfurt)" },
-  ];
   
   const [selectedRegion, setSelectedRegion] = useState("us-west-2");
   
@@ -273,18 +109,17 @@ export default function AIChat() {
     if (!messagesEndRef.current) return;
 
     const observer = new ResizeObserver(() => {
-      if (!isScrollLocked) {
-        messagesEndRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "end",
-        });
-      }
+      messagesEndRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
     });
+  
 
     observer.observe(messagesEndRef.current);
 
     return () => observer.disconnect();
-  }, [isScrollLocked]);
+  }, []);
 
   const handleChartScroll = useCallback(() => {
     if (!contentRef.current) return;
@@ -422,12 +257,10 @@ export default function AIChat() {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!input.trim() && !currentUpload) return;
     if (isLoading) return;
-  
-    setIsScrollLocked(true);
   
     const userMessage: Message = {
       id: uuidv4(),
@@ -437,11 +270,7 @@ export default function AIChat() {
     };
   
     setMessages((prev) => [...prev, userMessage]);
-    setThinkingMessage({
-      id: uuidv4(),
-      role: "assistant",
-      content: [{ text: "thinking"}],
-    });
+    setIsThinking(true);
     setInput("");
     setIsLoading(true);
   
@@ -560,7 +389,7 @@ export default function AIChat() {
  
         if (analyzeData.result && analyzeData.result.length > 0) {  
           
-          const visualizeRequest = `Visualize this data: ${JSON.stringify(analyzeData.result)}`
+          const visualizeRequest = `User request: ${input} \n Visualize this data: ${JSON.stringify(analyzeData.result)}`
           setMessages((prev) => [
             ...prev,
             {
@@ -609,8 +438,6 @@ export default function AIChat() {
           }
         }
       }
-      setThinkingMessage(null);
-
     } catch (error) {
       console.error("Submit Error:", error);
       setMessages((prev) => [
@@ -623,8 +450,7 @@ export default function AIChat() {
       ]);
     } finally {
       setIsLoading(false);
-      setIsScrollLocked(false);
-      setThinkingMessage(null);
+      setIsThinking(false);
 
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({
@@ -633,7 +459,7 @@ export default function AIChat() {
         });
       });
     }
-  };
+  }, [messages, input, currentUpload, selectedModel, selectedRegion, setMessages, setIsThinking, setInput, setIsLoading, setQueryDetails]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -671,222 +497,37 @@ export default function AIChat() {
       />
 
       <div className="flex-1 flex bg-background p-4 pt-0 gap-4 h-[calc(100vh-4rem)]">
-        {/* Chat Sidebar */}
-        <Card className="w-1/3 flex flex-col h-full">
-          <CardHeader className="py-3 px-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                {messages.length > 0 && (
-                  <>
-                    <Avatar className="w-8 h-8 border">
-                      <AvatarImage
-                        src="/bedrock-logo.png"
-                        alt="AI Assistant Avatar"
-                      />
-                      <AvatarFallback>AI</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-lg">
-                        Data Analysis Assistant
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        Powered by Bedrock
-                      </CardDescription>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-8 text-sm">
-                      {regions.find((r) => r.id === selectedRegion)?.name}
-                      <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    {regions.map((region) => (
-                      <DropdownMenuItem
-                        key={region.id}
-                        onSelect={() => setSelectedRegion(region.id)}
-                      >
-                        {region.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+        <Chat
+          messages={messages}
+          input={input}
+          isLoading={isLoading}
+          currentUpload={currentUpload}
+          selectedModel={selectedModel}
+          selectedRegion={selectedRegion}
+          models={models}
+          regions={regions}
+          isThinking={isThinking}
+          onInputChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onSubmit={handleSubmit}
+          onFileSelect={handleFileSelect}
+          setSelectedModel={setSelectedModel}
+          setSelectedRegion={setSelectedRegion}
+          setCurrentUpload={setCurrentUpload}
+        />
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-8 text-sm">
-                      {models.find((m) => m.id === selectedModel)?.name}
-                      <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    {models.map((model) => (
-                      <DropdownMenuItem
-                        key={model.id}
-                        onSelect={() => setSelectedModel(model.id)}
-                      >
-                        {model.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="flex-1 overflow-y-auto p-4 scroll-smooth snap-y snap-mandatory">
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full animate-fade-in-up max-w-[95%] mx-auto">
-                <Avatar className="w-10 h-10 mb-4 border">
-                  <AvatarImage
-                    src="/bedrock-logo.png"
-                    alt="AI Assistant Avatar"
-                    width={40}
-                    height={40}
-                  />
-                </Avatar>
-                <h2 className="text-xl font-semibold mb-2">
-                  Data Analysis Assistant
-                </h2>
-                <div className="space-y-4 text-base">
-                  <div className="flex items-center gap-3">
-                    <MessageCircleQuestion className="text-muted-foreground w-6 h-6" />
-                    <p className="text-muted-foreground">
-                      Ask questions about your database, and I'll prepare the
-                      relevant dataset.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <ChartArea className="text-muted-foreground w-6 h-6" />
-                    <p className="text-muted-foreground">
-                      I can analyze data and create visualizations based on the
-                      dataset.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <FileInput className="text-muted-foreground w-6 h-6" />
-                    <p className="text-muted-foreground">
-                      You can also upload CSVs, PDFs, or images if you have
-                      additional files to discuss.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4 min-h-full">
-              {messages.map((message) => (
-                <div key={message.id} className="animate-fade-in-up">
-                  <MessageComponent message={message} />
-                </div>
-              ))}
-              {thinkingMessage && (
-                <div className="animate-fade-in-up animate-pulse">
-                  <MessageComponent message={thinkingMessage} />
-                </div>
-              )}
-              <div ref={messagesEndRef} className="h-4" />
-            </div>
-          )}
-          </CardContent>
-
-          <CardFooter className="p-4 border-t">
-            <form onSubmit={handleSubmit} className="w-full">
-              <div className="flex flex-col space-y-2">
-                {currentUpload && (
-                  <FilePreview
-                    file={currentUpload}
-                    onRemove={() => setCurrentUpload(null)}
-                  />
-                )}
-                <div className="flex items-end space-x-2">
-                  <div className="flex-1 relative">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isLoading || isUploading}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                    >
-                      <Paperclip className="h-5 w-5" />
-                    </Button>
-                    <Textarea
-                      value={input}
-                      onChange={handleInputChange}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Type your message..."
-                      disabled={isLoading}
-                      className="min-h-[44px] h-[44px] resize-none pl-12 py-3 flex items-center"
-                      rows={1}
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={isLoading || (!input.trim() && !currentUpload)}
-                    className="h-[44px]"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-            </form>
-          </CardFooter>
-        </Card>
-
-        <Card className="w-1/3 flex flex-col h-full overflow-hidden">
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-lg">Query Details</CardTitle>
-          </CardHeader>
-          <CardContent 
-            ref={queryContentRef}
-            className="flex-1 overflow-y-auto snap-y snap-mandatory"
-            onScroll={() => {
-              if (!queryContentRef.current) return;
-              const { scrollTop, clientHeight } = queryContentRef.current;
-              const newIndex = Math.round(scrollTop / clientHeight);
-              if (newIndex !== currentQueryIndex) {
-                syncScroll(newIndex);
-              }
-            }}
-          >
-            {queryDetails.length > 0 ? (
-              queryDetails.map((detail, index) => (
-                <div key={index} className="min-h-full flex-shrink-0 snap-start snap-always">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="font-semibold mb-2">SQL Query:</h3>
-                      <pre className="bg-muted p-2 rounded text-sm">{detail.query}</pre>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold mb-2">Explanation:</h3>
-                      <p>{detail.explanation}</p>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold mb-2">Results:</h3>
-                      <pre className="bg-muted p-2 rounded text-sm overflow-x-auto">
-                        {JSON.stringify(detail.result, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-muted-foreground">
-                Run a query in the chat to see the details here.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <QueryDetails 
+        queryDetails={queryDetails}
+        currentQueryIndex={currentQueryIndex}
+        onScroll={() => {
+          if (!queryContentRef.current) return;
+          const { scrollTop, clientHeight } = queryContentRef.current;
+          const newIndex = Math.round(scrollTop / clientHeight);
+          if (newIndex !== currentQueryIndex) {
+            syncScroll(newIndex);
+          }
+        }}
+      />
 
         {/* Content Area */}
         <Card className="flex-1 flex flex-col h-full overflow-hidden">

@@ -1,4 +1,4 @@
-// app/api/finance/route.ts
+// app/api/visualize/route.ts
 import { NextRequest } from "next/server";
 import { ConverseCommand, BedrockRuntimeServiceException } from "@aws-sdk/client-bedrock-runtime";
  // Start of Selection
@@ -94,7 +94,7 @@ Here are the chart types available and their ideal use cases:
 
 1. LINE CHARTS ("line")
    - Time series data showing trends
-   - Financial metrics over time
+   - Numerical metrics over time
    - Market performance tracking
 
 2. BAR CHARTS ("bar")
@@ -184,7 +184,7 @@ For Distributions (Pie):
 
 Always:
 - Generate real, contextually appropriate data
-- Use proper financial formatting
+- Use proper unit formatting
 - Include relevant trends and insights
 - Structure data exactly as needed for the chosen chart type
 - Choose the most appropriate visualization for the data
@@ -195,13 +195,13 @@ Never:
 - Include technical implementation details in responses
 - NEVER SAY you are using the generate_graph_data tool, just execute it when needed.
 
-Focus on clear financial insights and let the visualization enhance understanding.` 
+Focus on clear domain insights and let the visualization enhance understanding.` 
 
 
 const tools = [{
   toolSpec: {
     name: "generate_graph_data",
-    description: "Generate structured JSON data for creating financial charts and graphs.",
+    description: "Generate structured JSON data for creating proper charts and graphs.",
     inputSchema: {
       json: {
         type: "object",
@@ -360,7 +360,7 @@ export async function POST(req: NextRequest) {
       })),
       system: [{ text: systemPrompt }]
     }, null, 2));
-    
+   
     const response = await bedrockClient.send(command);
     console.log("📊 Raw Bedrock Response:", JSON.stringify(response, null, 2));
 
@@ -444,7 +444,7 @@ export async function POST(req: NextRequest) {
     );
 
   } catch (error) {
-    console.error("❌ Finance API Error: ", error);
+    console.error("❌ Visualize API Error: ", error);
     console.error("Full error details:", {
       name: error instanceof Error ? error.name : "Unknown",
       message: error instanceof Error ? error.message : "Unknown error",
