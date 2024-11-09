@@ -303,7 +303,7 @@ export async function POST(req: NextRequest) {
         if (Array.isArray(msg.content)) {
           msg.content.forEach((content: any) => {
             if (content.type === 'text') {
-              messageContent.push({ text: content.text });
+              messageContent.push(content.text[0]);
             } else if (content.type === 'image') {
               messageContent.push({
                 image: {

@@ -65,9 +65,7 @@ export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(
-    "anthropic.claude-3-5-sonnet-20240620-v1:0",
-  );
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chartEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +82,9 @@ export default function AIChat() {
   const queryContentRef = useRef<HTMLDivElement>(null);
   
   const [selectedRegion, setSelectedRegion] = useState("us-west-2");
-  
+  const [selectedModel, setSelectedModel] = useState(
+    "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  );
 
   useEffect(() => {
     const scrollToBottom = () => {
@@ -136,6 +136,13 @@ export default function AIChat() {
       behavior: "smooth"
     });
   };
+
+  const syncScroll = (index: number) => {
+    setCurrentChartIndex(index);
+    setCurrentQueryIndex(index);
+    scrollToChart(index);
+    scrollToQuery(index);
+  };
   
   const scrollToQuery = (index: number) => {
     if (!queryContentRef.current) return;
@@ -159,14 +166,6 @@ export default function AIChat() {
       setTimeout(scrollToNewestChart, 100);
     }
   }, [messages]);
-
-  const syncScroll = (index: number) => {
-    setCurrentChartIndex(index);
-    setCurrentQueryIndex(index);
-    scrollToChart(index);
-    scrollToQuery(index);
-  };
-
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -274,7 +273,6 @@ export default function AIChat() {
     setInput("");
     setIsLoading(true);
   
-  
     try {
       const apiMessages = [...messages, userMessage].map((msg) => {
         if (msg.file) {
@@ -346,7 +344,7 @@ export default function AIChat() {
           },
         ]);
       } else {
-        const analyzeResponse = await fetch("/api/analyze", {
+        const analyzeResponse = await fetch("http://localhost:8000/analyze", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -357,26 +355,28 @@ export default function AIChat() {
             region: selectedRegion,
           }),
         });
-        
+    
         if (!analyzeResponse.ok) {
           throw new Error(`Analyze API error! status: ${analyzeResponse.status}`);
         }
-  
+    
         const analyzeData: AnalyzeAPIResponse = await analyzeResponse.json();
-        setQueryDetails((prev) => [...prev, analyzeData]);
-  
-        const toolUseId = uuidv4();
-        setMessages((prev) => [
-          ...prev,
-          {
+        const isToolUse = analyzeData.stopReason === 'tool_use';
+    
+        let newMessages: Message[] = [];
+    
+        if (isToolUse && analyzeData.query) {
+          setQueryDetails((prev) => [...prev, analyzeData]);
+    
+          newMessages.push({
             id: uuidv4(),
             role: "assistant",
             content: [
               { text: analyzeData.content },
-              { 
+              {
                 toolUse: {
-                  toolUseId: toolUseId,
-                  name: "generate_sql_query",
+                  toolUseId: analyzeData.toolUseId,
+                  name: analyzeData.toolName || "generate_sql_query",
                   input: {
                     query: analyzeData.query,
                     explanation: analyzeData.explanation
@@ -384,59 +384,60 @@ export default function AIChat() {
                 }
               }
             ]
-          },
-        ]);
- 
-        if (analyzeData.result && analyzeData.result.length > 0) {  
-          
-          const visualizeRequest = `User request: ${input} \n Visualize this data: ${JSON.stringify(analyzeData.result)}`
-          setMessages((prev) => [
-            ...prev,
-            {
+          });
+    
+          if (Array.isArray(analyzeData.result) && analyzeData.result.length > 0) {
+            const visualizeRequest = `User request: ${input} \n Visualize this data: ${JSON.stringify(analyzeData.result)}`;
+            newMessages.push({
               id: uuidv4(),
               role: "user",
               content: [
-                { 
+                {
                   toolResult: {
-                    toolUseId: toolUseId,
+                    toolUseId: analyzeData.toolUseId,
                     content: [
                       {
-                        text: visualizeRequest 
+                        text: visualizeRequest
                       }
                     ]
                   }
                 }
               ]
-            },
-          ]);
-   
-          const visualizeResponse = await fetch("/api/visualize", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              messages: [{ role: "user", content: visualizeRequest }],
-              model: selectedModel,
-              region: selectedRegion,
-            }),
-          });
+            });
     
-          if (visualizeResponse.ok) {
-            const visualizeData: APIResponse = await visualizeResponse.json();
-            setMessages((prev) => [
-              ...prev,
-              {
+            const visualizeResponse = await fetch("/api/visualize", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                messages: [{ role: "user", content: visualizeRequest }],
+                model: selectedModel,
+                region: selectedRegion,
+              }),
+            });
+    
+            if (visualizeResponse.ok) {
+              const visualizeData: APIResponse = await visualizeResponse.json();
+              newMessages.push({
                 id: uuidv4(),
                 role: "assistant",
                 content: [{ text: visualizeData.content || "Here's the visualization based on the data." }],
                 chartData: visualizeData.chartData || null,
-              },
-            ]);
-          } else {
-            throw new Error(`Visualize API error! status: ${visualizeResponse.status}`);
+              });
+            } else {
+              throw new Error(`Visualize API error! status: ${visualizeResponse.status}`);
+            }
           }
+        } else {
+          newMessages.push({
+            id: uuidv4(),
+            role: "assistant",
+            content: [{ text: analyzeData.content }]
+          });
         }
+    
+        setMessages((prev) => [...prev, ...newMessages]);
       }
     } catch (error) {
       console.error("Submit Error:", error);
@@ -451,6 +452,10 @@ export default function AIChat() {
     } finally {
       setIsLoading(false);
       setIsThinking(false);
+      setCurrentUpload(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''; 
+      }
 
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({
@@ -459,7 +464,7 @@ export default function AIChat() {
         });
       });
     }
-  }, [messages, input, currentUpload, selectedModel, selectedRegion, setMessages, setIsThinking, setInput, setIsLoading, setQueryDetails]);
+  }, [messages, input, currentUpload, selectedModel, selectedRegion, setMessages, setIsThinking, setInput, setIsLoading, setQueryDetails, setCurrentUpload]); 
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -489,11 +494,7 @@ export default function AIChat() {
   return (
     <div className="flex flex-col h-screen">
       <TopNavBar
-        features={{
-          showDomainSelector: false,
-          showViewModeSelector: false,
-          showPromptCaching: false,
-        }}
+        features={{showDomainSelector: false, showViewModeSelector: false, showPromptCaching: false }}
       />
 
       <div className="flex-1 flex bg-background p-4 pt-0 gap-4 h-[calc(100vh-4rem)]">
@@ -507,6 +508,7 @@ export default function AIChat() {
           models={models}
           regions={regions}
           isThinking={isThinking}
+          fileInputRef={fileInputRef}
           onInputChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onSubmit={handleSubmit}
@@ -517,17 +519,17 @@ export default function AIChat() {
         />
 
         <QueryDetails 
-        queryDetails={queryDetails}
-        currentQueryIndex={currentQueryIndex}
-        onScroll={() => {
-          if (!queryContentRef.current) return;
-          const { scrollTop, clientHeight } = queryContentRef.current;
-          const newIndex = Math.round(scrollTop / clientHeight);
-          if (newIndex !== currentQueryIndex) {
-            syncScroll(newIndex);
-          }
-        }}
-      />
+          queryDetails={queryDetails}
+          currentQueryIndex={currentQueryIndex}
+          onScroll={() => {
+            if (!queryContentRef.current) return;
+            const { scrollTop, clientHeight } = queryContentRef.current;
+            const newIndex = Math.round(scrollTop / clientHeight);
+            if (newIndex !== currentQueryIndex) {
+              syncScroll(newIndex);
+            }
+          }}
+        />
 
         {/* Content Area */}
         <Card className="flex-1 flex flex-col h-full overflow-hidden">

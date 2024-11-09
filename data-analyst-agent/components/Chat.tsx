@@ -20,6 +20,7 @@ interface ChatProps {
   models: Model[];
   regions: { id: string; name: string }[];
   isThinking: boolean;
+  fileInputRef: React.RefObject<HTMLInputElement>;
   onInputChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -56,6 +57,7 @@ const Chat: React.FC<ChatProps> = ({
   models,
   regions,
   isThinking,
+  fileInputRef,  
   onInputChange,
   onKeyDown,
   onSubmit,
@@ -65,7 +67,6 @@ const Chat: React.FC<ChatProps> = ({
   setCurrentUpload,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <Card className="w-1/3 flex flex-col h-full">

@@ -63,4 +63,5 @@ export interface AnalyzeAPIResponse {
   content: string;
   toolUseId?: string;
   toolName?: string;
+  stopReason?: string;
 }

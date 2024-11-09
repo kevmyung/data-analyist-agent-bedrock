@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently \"next dev\" \"npm run start-api\"",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "start-api": "cd py-backend && uvicorn app.app:app --host 0.0.0.0 --port 8000 --reload"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.29.0",
@@ -35,6 +36,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/uuid": "^10.0.0",
+    "concurrently": "^9.1.0",
     "eslint": "^8",
     "eslint-config-next": "14.2.15",
     "postcss": "^8",
