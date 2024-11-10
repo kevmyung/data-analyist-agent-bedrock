@@ -349,7 +349,6 @@ export async function POST(req: NextRequest) {
 
         // Get the tool input from the response
         const toolInput = toolUseContent.toolUse.input;
-        console.log("Tool Input:", toolInput);
 
         const chartData = typeof toolInput === 'string' ? JSON.parse(toolInput) : toolInput;
 

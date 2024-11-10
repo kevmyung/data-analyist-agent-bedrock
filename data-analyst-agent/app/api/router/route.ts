@@ -12,7 +12,7 @@ Guidelines:
 2. 'file': For visualization, file analysis, or data processing requests.
    Examples: "Create a chart", "Analyze this image", "Summarize this PDF"
 
-3. 'db': For database queries, data retrieval, or analysis.
+3. 'db': For database queries, data retrieval, analysis, or visualization based on query results.
    Examples: "How many sales last month?", "List top customers", "Calculate average revenue"
 
 4. 'chat': For general knowledge, conversation, or simple queries not involving file/database operations.

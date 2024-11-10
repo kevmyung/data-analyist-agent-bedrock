@@ -17,7 +17,7 @@ import TopNavBar from "@/components/TopNavBar";
 import { readFileAsText, readFileAsBase64, readFileAsPDFText } from "@/utils/fileHandling";
 
 
-const SafeChartRenderer: React.FC<{ data: ChartData }> = ({ data }) => {
+const SafeChartRenderer = React.memo(({ data }: { data: ChartData }) => {
   try {
     return (
       <div className="w-full h-full p-6 flex flex-col">
@@ -34,7 +34,7 @@ const SafeChartRenderer: React.FC<{ data: ChartData }> = ({ data }) => {
       <div className="text-red-500">Error rendering chart: {errorMessage}</div>
     );
   }
-};
+});
 
 
 const ChartPagination = ({
@@ -375,7 +375,6 @@ export default function AIChat() {
               id: uuidv4(),
               role: "assistant",
               content: [
-                { text: analyzeData.content },
                 {
                   toolUse: {
                     toolUseId: analyzeData.toolUseId,
@@ -397,14 +396,14 @@ export default function AIChat() {
                     toolUseId: analyzeData.toolUseId,
                     content: [
                       {
-                        text: `Viualize this data: ${JSON.stringify(analyzeData.result)}`
+                        text: `Visualize this data: ${JSON.stringify(analyzeData.result)}`
                       }
                     ]
                   }
                 }
               ]
             }
-          ]
+          ];
 
   
           const visualizeResponse = await fetch("/api/visualize", {
@@ -423,10 +422,11 @@ export default function AIChat() {
             const visualizeData: APIResponse = await visualizeResponse.json();
             setMessages((prev) => [
               ...prev,
+              ...updatedApiMessages.slice(-2) as Message[],
               {
                 id: uuidv4(),
                 role: "assistant",
-                content: [{ text: visualizeData.content }],
+                content: [{ text: `${analyzeData.content}\n\n${visualizeData.content}` }],
                 chartData: visualizeData.chartData || null
               },
             ]);        
