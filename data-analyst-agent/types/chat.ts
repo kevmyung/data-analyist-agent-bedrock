@@ -6,6 +6,7 @@ export interface ContentBlock {
   text?: string;
   toolUse?: ToolUse;
   toolResult?: ToolResult;
+  json?: string;
 }
 
 export interface ToolUse {
@@ -18,7 +19,8 @@ export interface ToolUse {
 
 export interface ToolResult {
   toolUseId: string;
-  content: [{text: string;}];
+  content: [{text?: string; json?: string;}];
+  status?: 'success' | 'error'; 
 }
 
 export interface Message {

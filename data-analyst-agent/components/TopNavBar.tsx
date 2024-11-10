@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu,
@@ -11,17 +11,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Add this interface to define the props structure
 interface TopNavBarProps {
   features?: {
     showDomainSelector?: boolean;
     showViewModeSelector?: boolean;
     showPromptCaching?: boolean;
   };
+  onReset?: () => void; // Add this line
 }
 
-// Change this line to include the props type
-const TopNavBar: React.FC<TopNavBarProps> = ({ features = {} }) => {
+const TopNavBar: React.FC<TopNavBarProps> = ({ features = {}, onReset }) => {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -64,6 +63,16 @@ const TopNavBar: React.FC<TopNavBarProps> = ({ features = {} }) => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {onReset && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onReset}
+            title="Reset Chat"
+          >
+            <Trash2 className="h-[1.2rem] w-[1.2rem]" />
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -121,6 +121,22 @@ export default function AIChat() {
     return () => observer.disconnect();
   }, []);
 
+  const handleReset = useCallback(() => {
+    setMessages([]);
+    setQueryDetails([]);
+    setCurrentChartIndex(0);
+    setCurrentQueryIndex(0);
+    setInput("");
+    setCurrentUpload(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    toast({
+      title: "Chat Reset",
+      description: "All chat history and visualizations have been cleared.",
+    });
+  }, []);
+
   const handleChartScroll = useCallback(() => {
     if (!contentRef.current) return;
 
@@ -280,31 +296,26 @@ export default function AIChat() {
             const decodedText = decodeURIComponent(atob(msg.file.base64));
             return {
               role: msg.role,
-              content: `File contents of ${msg.file.fileName}:\n\n${decodedText}\n\n${msg.content}`,
+              content: [{ text: `File contents of ${msg.file.fileName}:\n\n${decodedText}\n\n${msg.content[0].text}` }]
             };
           } else {
             return {
               role: msg.role,
-              content: [
-                {
-                  type: "image",
+              content: [{
+                image: {
+                  format: msg.file.mediaType.split('/')[1],
                   source: {
-                    type: "base64",
-                    media_type: msg.file.mediaType,
-                    data: msg.file.base64,
-                  },
-                },
-                {
-                  type: "text",
-                  text: msg.content,
-                },
-              ],
-            };
+                    bytes: msg.file.base64
+                  }
+                }
+              }, 
+              { text: msg.content[0].text }
+            ]};
           }
         }
         return {
           role: msg.role,
-          content: msg.content,
+          content: msg.content 
         };
       });
 
@@ -314,36 +325,29 @@ export default function AIChat() {
         region: selectedRegion,
       }, null, 2));
 
-      if (currentUpload) {  
-        const visualizeResponse = await fetch("/api/visualize", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messages: apiMessages,
-            model: selectedModel,
-            region: selectedRegion,
-          }),
-        });
-  
-        if (!visualizeResponse.ok) {
-          throw new Error(`Visualize API error! status: ${visualizeResponse.status}`);
-        }
-  
-        const visualizeData: APIResponse = await visualizeResponse.json();
-  
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: uuidv4(),
-            role: "assistant",
-            content: [{ text: visualizeData.content }],
-            hasToolUse: visualizeData.hasToolUse || !!visualizeData.toolUse,
-            chartData: visualizeData.chartData || (visualizeData.toolUse?.input as ChartData) || null,
-          },
-        ]);
-      } else {
+      const routerResponse = await fetch("/api/router", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: apiMessages,
+          model: selectedModel,
+          region: selectedRegion,
+        }),
+      });
+
+      if (!routerResponse.ok) {
+        throw new Error(`Visualize API error! status: ${routerResponse.status}`);
+      }
+      const responseData = await routerResponse.json();
+      const answeringTool = responseData.input.answering_tool;
+
+      console.log("Router Response:", responseData)
+
+      if (answeringTool === 'db') { // Database Access
+        console.log("Database access is requested");
+        
         const analyzeResponse = await fetch("http://localhost:8000/analyze", {
           method: "POST",
           headers: {
@@ -355,40 +359,36 @@ export default function AIChat() {
             region: selectedRegion,
           }),
         });
-    
+
         if (!analyzeResponse.ok) {
           throw new Error(`Analyze API error! status: ${analyzeResponse.status}`);
         }
+
+        const analyzeData: AnalyzeAPIResponse = await analyzeResponse.json();        
     
-        const analyzeData: AnalyzeAPIResponse = await analyzeResponse.json();
-        const isToolUse = analyzeData.stopReason === 'tool_use';
-    
-        let newMessages: Message[] = [];
-    
-        if (isToolUse && analyzeData.query) {
+        if (analyzeData.stopReason === 'tool_use' && analyzeData.result.length > 0) {
           setQueryDetails((prev) => [...prev, analyzeData]);
-    
-          newMessages.push({
-            id: uuidv4(),
-            role: "assistant",
-            content: [
-              { text: analyzeData.content },
-              {
-                toolUse: {
-                  toolUseId: analyzeData.toolUseId,
-                  name: analyzeData.toolName || "generate_sql_query",
-                  input: {
-                    query: analyzeData.query,
-                    explanation: analyzeData.explanation
+
+          const updatedApiMessages = [
+            ...apiMessages,
+            {
+              id: uuidv4(),
+              role: "assistant",
+              content: [
+                { text: analyzeData.content },
+                {
+                  toolUse: {
+                    toolUseId: analyzeData.toolUseId,
+                    name: "generate_sql_query",
+                    input: {
+                      query: analyzeData.query,
+                      explanation: analyzeData.explanation
+                    }
                   }
                 }
-              }
-            ]
-          });
-    
-          if (Array.isArray(analyzeData.result) && analyzeData.result.length > 0) {
-            const visualizeRequest = `User request: ${input} \n Visualize this data: ${JSON.stringify(analyzeData.result)}`;
-            newMessages.push({
+              ]
+            },
+            {
               id: uuidv4(),
               role: "user",
               content: [
@@ -397,47 +397,119 @@ export default function AIChat() {
                     toolUseId: analyzeData.toolUseId,
                     content: [
                       {
-                        text: visualizeRequest
+                        text: `Viualize this data: ${JSON.stringify(analyzeData.result)}`
                       }
                     ]
                   }
                 }
               ]
-            });
-    
-            const visualizeResponse = await fetch("/api/visualize", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                messages: [{ role: "user", content: visualizeRequest }],
-                model: selectedModel,
-                region: selectedRegion,
-              }),
-            });
-    
-            if (visualizeResponse.ok) {
-              const visualizeData: APIResponse = await visualizeResponse.json();
-              newMessages.push({
+            }
+          ]
+
+  
+          const visualizeResponse = await fetch("/api/visualize", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messages: updatedApiMessages,
+              model: selectedModel,
+              region: selectedRegion,
+            }),
+          });
+
+          if (visualizeResponse.ok) {
+            const visualizeData: APIResponse = await visualizeResponse.json();
+            setMessages((prev) => [
+              ...prev,
+              {
                 id: uuidv4(),
                 role: "assistant",
-                content: [{ text: visualizeData.content || "Here's the visualization based on the data." }],
-                chartData: visualizeData.chartData || null,
-              });
-            } else {
-              throw new Error(`Visualize API error! status: ${visualizeResponse.status}`);
-            }
+                content: [{ text: visualizeData.content }],
+                chartData: visualizeData.chartData || null
+              },
+            ]);        
+
+          } else {
+            throw new Error(`Visualize API error! status: ${visualizeResponse.status}`);
           }
-        } else {
-          newMessages.push({
+        } 
+      } else if (answeringTool === 'file') {  // File Access
+        console.log("File processing is requested");
+        const visualizeResponse = await fetch("/api/visualize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messages: apiMessages,
+            model: selectedModel,
+            region: selectedRegion,
+          }),
+        });
+
+        if (!visualizeResponse.ok) {
+          throw new Error(`Visualize API error! status: ${visualizeResponse.status}`);
+        }
+  
+        const visualizeData: APIResponse = await visualizeResponse.json();
+        const toolUseId = visualizeData.toolUse.id || uuidv4()
+        setMessages((prev) => [
+          ...prev,
+          {
             id: uuidv4(),
             role: "assistant",
-            content: [{ text: analyzeData.content }]
-          });
-        }
-    
-        setMessages((prev) => [...prev, ...newMessages]);
+            content: [
+              {
+                toolUse: {
+                  toolUseId: toolUseId,
+                  name: visualizeData.toolUse.name || "generate_graph_data",
+                  input: visualizeData.toolUse.input
+                }
+              }
+            ],
+            hasToolUse: visualizeData.hasToolUse || !!visualizeData.toolUse,
+            chartData: visualizeData.chartData || (visualizeData.toolUse?.input as ChartData) || null,
+          },
+          {
+            id: uuidv4(),
+            role: "user",
+            content: [
+              {
+                toolResult: {
+                  toolUseId: toolUseId,
+                  content: [
+                    {
+                      text: "Visualization Done."
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            id: uuidv4(),
+            role: "assistant",
+            content: [
+              {
+                text: visualizeData.content
+              }
+            ]
+          }
+        ]);
+      } else if (answeringTool === 'chat') {
+        console.log("General chat response");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: uuidv4(),
+            role: "assistant",
+            content: [{ text: responseData.input.direct_answer || "I'm sorry, I don't have a direct answer for that." }],
+          },
+        ]);
+      } else {
+        console.error("Unexpected result from router API");
       }
     } catch (error) {
       console.error("Submit Error:", error);
@@ -495,6 +567,7 @@ export default function AIChat() {
     <div className="flex flex-col h-screen">
       <TopNavBar
         features={{showDomainSelector: false, showViewModeSelector: false, showPromptCaching: false }}
+        onReset={handleReset}
       />
 
       <div className="flex-1 flex bg-background p-4 pt-0 gap-4 h-[calc(100vh-4rem)]">

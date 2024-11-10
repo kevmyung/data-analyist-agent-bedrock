@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
+import html2canvas from 'html2canvas';
 import {
   Card,
   CardContent,
@@ -9,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, Download } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -29,6 +30,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { ChartData } from "@/types/chart";
+import { Button } from "@/components/ui/button";
 
 function BarChartComponent({ data }: { data: ChartData }) {
   const dataKey = Object.keys(data.chartConfig)[0];
@@ -388,21 +390,77 @@ function AreaChartComponent({
   );
 }
 
+
+function DownloadButton({ chartRef, title }: { chartRef: React.RefObject<HTMLDivElement>, title: string }) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (chartRef.current) {
+      setIsDownloading(true);
+
+      const downloadButton = chartRef.current.querySelector('.download-button');
+      if (downloadButton) {
+        (downloadButton as HTMLElement).style.display = 'none';
+      }
+
+      try {
+        const canvas = await html2canvas(chartRef.current);
+        const image = canvas.toDataURL("image/png", 1.0);
+        const link = document.createElement('a');
+        link.download = `${title.replace(/\s+/g, '_')}.png`;
+        link.href = image;
+        link.click();
+      } finally {
+        if (downloadButton) {
+          (downloadButton as HTMLElement).style.display = '';
+        }
+        setIsDownloading(false);
+      }
+    }
+  };
+
+  return (
+    <Button
+      className="absolute top-2 right-2 z-10 download-button"
+      variant="outline"
+      size="sm"
+      onClick={handleDownload}
+      disabled={isDownloading}
+    >
+      <Download className="mr-2 h-4 w-4" />
+      {isDownloading ? 'Downloading...' : 'Download'}
+    </Button>
+  );
+}
+
 export function ChartRenderer({ data }: { data: ChartData }) {
-  switch (data.chartType) {
-    case "bar":
-      return <BarChartComponent data={data} />;
-    case "multiBar":
-      return <MultiBarChartComponent data={data} />;
-    case "line":
-      return <LineChartComponent data={data} />;
-    case "pie":
-      return <PieChartComponent data={data} />;
-    case "area":
-      return <AreaChartComponent data={data} />;
-    case "stackedArea":
-      return <AreaChartComponent data={data} stacked />;
-    default:
-      return null;
-  }
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  const ChartComponent = (() => {
+    switch (data.chartType) {
+      case "bar":
+        return BarChartComponent;
+      case "multiBar":
+        return MultiBarChartComponent;
+      case "line":
+        return LineChartComponent;
+      case "pie":
+        return PieChartComponent;
+      case "area":
+        return (props: any) => <AreaChartComponent {...props} />;
+      case "stackedArea":
+        return (props: any) => <AreaChartComponent {...props} stacked />;
+      default:
+        return null;
+    }
+  })();
+
+  if (!ChartComponent) return null;
+
+  return (
+    <div ref={chartRef} className="relative">
+      <DownloadButton chartRef={chartRef} title={data.config.title} />
+      <ChartComponent data={data} />
+    </div>
+  );
 }

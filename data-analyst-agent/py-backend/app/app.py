@@ -65,9 +65,6 @@ def get_sample_data():
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest):
     try:
-        logger.info(f"Received raw request: {request.json()}")
-        logger.info(f"Parsed messages: {[msg.dict() for msg in request.messages]}")
-
         if not request.messages:
             raise HTTPException(status_code=400, detail="Messages are required and must be a non-empty array")
         if not request.model:
@@ -125,7 +122,7 @@ Here are some sample data for the table '{table_name}':
             }]
         }
 
-        logger.info(f"Final API request: {json.dumps({'modelId': request.model, 'messages': [msg.model_dump() for msg in request.messages]}, indent=2)}")
+        logger.info(f"Analyze API request: {request.messages}")
 
         response = bedrock_client.converse(
             modelId=request.model,
@@ -139,7 +136,7 @@ Here are some sample data for the table '{table_name}':
             toolConfig=tool_config
         )
 
-        logger.info(f"Raw Bedrock Response: {json.dumps(response, indent=2)}")
+        logger.info(f"Analyze API Response: {json.dumps(response, indent=2)}")
         if 'output' not in response or 'message' not in response['output'] or 'content' not in response['output']['message']:
             raise HTTPException(status_code=500, detail="Invalid response from Bedrock API")
 

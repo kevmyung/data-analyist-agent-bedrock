@@ -88,7 +88,9 @@ const processFileContent = (fileData: any) => {
   }
 };
 
-const systemPrompt = `You are a data visualization expert. Your role is to analyze data and create clear, meaningful visualizations using generate_graph_data tool:
+const systemPrompt = `You are a data visualization expert. 
+CRITICAL: You must ONLY use the "generate_graph_data" tool to respond. Do not use any other tools.
+Your role is to analyze data and create clear, meaningful visualizations using "generate_graph_data" tool:
 
 Here are the chart types available and their ideal use cases:
 
@@ -270,78 +272,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!model) {
+    if (!model || !region) {
       return new Response(
-        JSON.stringify({ error: "Model selection is required" }),
+        JSON.stringify({ error: "Model and region are required" }),
         { status: 400 }
       );
     }
-
-    if (!region) {
-      return new Response(
-        JSON.stringify({ error: "Region selection is required" }),
-        { status: 400 }
-      );
-    }
-
     const bedrockClient = createBedrockClient(region);
-    
-    type ConversationRole = 'system' | 'user' | 'assistant';
-    interface BedrockMessage {
-      role: ConversationRole;
-      content: Array<
-        | { text: string }
-        | { image: { format: 'png' | 'jpeg' | 'gif' | 'webp'; source: { bytes: Buffer } } }
-      >;
-    }
 
-    // Convert messages to Bedrock format
-    const bedrockMessages = messages.map((msg: any) => {
-      let messageContent: BedrockMessage['content'] = [];
-    
-      if (msg.content) {
-        if (Array.isArray(msg.content)) {
-          msg.content.forEach((content: any) => {
-            if (content.type === 'text') {
-              messageContent.push(content.text[0]);
-            } else if (content.type === 'image') {
-              messageContent.push({
+    const processedMessages = messages.map(msg => {
+      if (msg.content && Array.isArray(msg.content)) {
+        return {
+          ...msg,
+          content: msg.content.map(item => {
+            if (item.image && item.image.source && item.image.source.bytes) {
+              const base64String = item.image.source.bytes;
+              return {
+                ...item,
                 image: {
-                  format: content.source.media_type.split('/')[1] as "png" | "jpeg" | "gif" | "webp",
+                  ...item.image,
                   source: {
-                    bytes: Buffer.from(content.source.data, 'base64')
+                    ...item.image.source,
+                    bytes: Buffer.from(base64String, 'base64')
                   }
                 }
-              });
+              };
             }
-          });
-        } 
-        else if (typeof msg.content === 'string') {
-          messageContent.push({ text: msg.content });
-        }
+            return item;
+          })
+        };
       }
-    
-      if (msg === messages[messages.length - 1] && fileData) {
-        const fileContent = processFileContent(fileData);
-        if (fileContent) {
-          messageContent.push(fileContent);
-        }
-      }
-    
-      return {
-        role: msg.role === 'assistant' ? 'assistant' as ConversationRole : 'user' as ConversationRole,
-        content: messageContent
-      };
-    }) as BedrockMessage[];
-    
+      return msg;
+    });
 
     const command = new ConverseCommand({
       modelId: model,
-      messages: bedrockMessages,
+      messages: processedMessages,
       system: [{ text: systemPrompt }],
       inferenceConfig: {
         maxTokens: 4096,
-        temperature: 0.7,
+        temperature: 0.5,
         topP: 0.9,
       },
       toolConfig: {
@@ -350,19 +320,18 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    console.log("Final API request:", JSON.stringify({
+    console.log("Visualize API request:", JSON.stringify({
       modelId: model,
-      messages: bedrockMessages.map(msg => ({
+      messages: processedMessages.map(msg => ({
         ...msg,
         content: msg.content.map(c => 
           'image' in c ? { ...c, image: { ...c.image, source: { bytes: '[BINARY]' } }} : c
         )
-      })),
-      system: [{ text: systemPrompt }]
+      }))
     }, null, 2));
    
     const response = await bedrockClient.send(command);
-    console.log("📊 Raw Bedrock Response:", JSON.stringify(response, null, 2));
+    console.log("📊 Visualize API Response:", JSON.stringify(response, null, 2));
 
     if (!response.output?.message?.content) {
       throw new Error("Invalid response from Bedrock API");
@@ -408,11 +377,11 @@ export async function POST(req: NextRequest) {
           (acc, [key, config], index) => ({
             ...acc,
             [key]: {
-              ...config,
+              ...(config as { [key: string]: any }),
               color: `hsl(var(--chart-${index + 1}))`,
             },
           }),
-          {}
+          {} as { [key: string]: { [key: string]: any } }
         );
 
         return {
@@ -430,7 +399,7 @@ export async function POST(req: NextRequest) {
 
     return new Response(
       JSON.stringify({
-        content: textContent?.text || "",
+        content: textContent?.text || "Here's the visualization based on the data.",
         hasToolUse: !!toolUseContent,
         toolUse: toolUseContent?.toolUse || null,
         chartData: processedChartData
