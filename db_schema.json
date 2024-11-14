@@ -1,48 +1,152 @@
-[
-    { "Column name": "category", "Data type": "varchar(2)", "Comment": "Classification" },
-    { "Column name": "reference_year_month", "Data type": "string", "Comment": "Reference year and month", "Partition": true },
-    { "Column name": "sales_reference_path", "Data type": "string", "Comment": "Sales reference path" },
-    { "Column name": "path_summary", "Data type": "string", "Comment": "Path summary" },
-    { "Column name": "manager", "Data type": "varchar(7)", "Comment": "Person in charge" },
-    { "Column name": "local_product_team", "Data type": "string", "Comment": "Local product team" },
-    { "Column name": "current_headquarters_id", "Data type": "string", "Comment": "Current headquarters ID" },
-    { "Column name": "current_headquarters", "Data type": "string", "Comment": "Current headquarters name" },
-    { "Column name": "product_team_summary_end_month", "Data type": "string", "Comment": "Product team summary at month-end" },
-    { "Column name": "west_md_end_month", "Data type": "string", "Comment": "West MD at month-end" },
-    { "Column name": "east_md_end_month", "Data type": "string", "Comment": "East MD at month-end" },
-    { "Column name": "md_summary_end_month", "Data type": "string", "Comment": "MD summary at month-end" },
-    { "Column name": "product_team_summary_current", "Data type": "string", "Comment": "Current product team summary" },
-    { "Column name": "current_west_md", "Data type": "string", "Comment": "Current West MD" },
-    { "Column name": "current_east_md", "Data type": "string", "Comment": "Current East MD" },
-    { "Column name": "md_summary_current", "Data type": "string", "Comment": "Current MD summary" },
-    { "Column name": "product_team_code", "Data type": "string", "Comment": "Product team code" },
-    { "Column name": "current_product_team", "Data type": "string", "Comment": "Current product team" },
-    { "Column name": "current_business_unit", "Data type": "string", "Comment": "Current business unit" },
-    { "Column name": "current_path_department_code", "Data type": "string", "Comment": "Current path department code" },
-    { "Column name": "current_path_department", "Data type": "string", "Comment": "Current path department" },
-    { "Column name": "product_category_major_name", "Data type": "string", "Comment": "Major product category name" },
-    { "Column name": "product_category_sub", "Data type": "string", "Comment": "Sub-category of product" },
-    { "Column name": "product_category_sub_name", "Data type": "string", "Comment": "Sub-category name of product" },
-    { "Column name": "product", "Data type": "string", "Comment": "Product identifier" },
-    { "Column name": "product_name", "Data type": "string", "Comment": "Product name" },
-    { "Column name": "pb_category", "Data type": "string", "Comment": "Private brand category" },
-    { "Column name": "pb_category_summary", "Data type": "string", "Comment": "Private brand category summary" },
-    { "Column name": "food_service_only_category", "Data type": "string", "Comment": "Food service exclusive category" },
-    { "Column name": "structure", "Data type": "varchar(5)", "Comment": "Structure" },
-    { "Column name": "sales_quantity_sku", "Data type": "double", "Comment": "Sales quantity in SKU" },
-    { "Column name": "sales_quantity_kg", "Data type": "double", "Comment": "Sales quantity in kg" },
-    { "Column name": "sales_amount_gross_basis", "Data type": "double", "Comment": "Gross sales amount" },
-    { "Column name": "sales_amount_gross_basis_summary", "Data type": "double", "Comment": "Summary of gross sales amount" },
-    { "Column name": "sales_cost_amount", "Data type": "double", "Comment": "Cost of goods sold" },
-    { "Column name": "product_profit_cost", "Data type": "double", "Comment": "Product profit cost" },
-    { "Column name": "moving_average_price", "Data type": "double", "Comment": "Moving average price" },
-    { "Column name": "other_sales_cost", "Data type": "double", "Comment": "Other sales costs" },
-    { "Column name": "performance_bonus", "Data type": "double", "Comment": "Performance bonus" },
-    { "Column name": "company_adjusted_cost", "Data type": "double", "Comment": "Company adjusted cost" },
-    { "Column name": "company_adjusted_cost_summary", "Data type": "double", "Comment": "Summary of company adjusted cost" },
-    { "Column name": "sales_profit_amount", "Data type": "double", "Comment": "Sales profit amount" },
-    { "Column name": "sales_profit_amount_summary", "Data type": "double", "Comment": "Summary of sales profit amount" },
-    { "Column name": "notes", "Data type": "varchar(14)", "Comment": "Additional notes" },
-    { "Column name": "food_service_summary_flag", "Data type": "varchar(1)", "Comment": "Flag for food service summary" },
-    { "Column name": "performance_summary_flag", "Data type": "varchar(1)", "Comment": "Flag for performance summary" }
-  ]
+{
+    "food_sales_table": {
+        "table_desc": "This table contains detailed sales and profit information for a company in the food distribution and catering business, including organizational structure, business routes, departments, customers, managers, and product-specific data. It is designed to analyze the company's sales performance and profits from various angles, based on diverse organizational structures and including sales data by customer and product. For example, it allows analysis of sales amounts and profits for specific products purchased by customers managed by managers belonging to particular headquarters, business units, and sales groups. The table includes specific information such as product category classifications, private brand (PB) status, customer headquarters, and individual IDs, enabling in-depth performance analysis by organization and route.",
+        "cols": [
+            {
+                "col": "reference_month",
+                "col_desc": "Represents the reference year and month for data analysis, consistently recorded in 'YYYY.MM' format without exception. For example, January 2024 is 2024.01 and February 2024 is 2024.02. Data values must be in this **YYYY.MM** format when writing SQL queries. This column is used for filtering data by specific months or comparing monthly sales and profits. It's essential for determining the analysis period and must be referenced when setting the timeframe for analysis. Data consistency in the 'YYYY.MM' format is crucial. This column enables data retrieval and aggregation based on specific months.",
+                "type": "varchar"
+            },
+            {
+                "col": "headquaters_current_id",
+                "col_desc": "Represents the unique current ID of the headquarters, identifying the top-level organizational unit. Each headquarters is distinguished by a unique ID. For example, an ID like '3001' represents a specific headquarters, allowing for analysis of sales performance at the headquarters level and comparison with other headquarters.",
+                "type": "varchar"
+            },
+            {
+                "col": "headquaters_current_name",
+                "col_desc": "Represents the current name of the headquarters, recording the name of the top-level organization. For example, 'Product & Marketing HQ' indicates a headquarters responsible for product marketing, useful for analyzing sales and performance by headquarters. The name helps easily identify the role and business area of the headquarters. FC stands for Franchise, FD for Sales, FS for Group Catering, and RS for Restaurant channel.",
+                "type": "varchar"
+            },
+            {
+                "col": "business_current_department_code",
+                "col_desc": "Represents the current code of the business department. It's a unique ID for departments under headquarters. For example, '1500' represents a specific department. This is useful for analyzing sales and profits of each department and understanding its relationship with the headquarters.",
+                "type": "varchar"
+            },
+            {
+                "col": "business_current_department_name",
+                "col_desc": "Represents the current name of the business department, used for calculating departmental sales performance and recording the names of departments under headquarters. For example, 'Distribution Business Unit' indicates a department managing distribution operations. This helps understand the structure of headquarters and subordinate departments.",
+                "type": "varchar"
+            },
+            {
+                "col": "sales_group_current_code",
+                "col_desc": "Represents the current code of the sales group, positioned at the lowest level in the order of headquarters, business department, and sales group. For example, '118' represents a specific sales group and is used to distinguish team-level organizations.",
+                "type": "varchar"
+            },
+            {
+                "col": "sales_group_current_name",
+                "col_desc": "Represents the current name of the sales group, including specific team names. It's used for calculating sales at the team level. This allows analysis of sales performance by sales group.",
+                "type": "varchar"
+            },
+            {
+                "col": "route_current_business_department_code",
+                "col_desc": "Represents the current code of the route business department, an ID that distinguishes departments based on routes. For example, '4005' represents a specific route department and is used to analyze sales generated from a particular route.",
+                "type": "varchar"
+            },
+            {
+                "col": "route_current_business_department_name",
+                "col_desc": "Represents the current name of the route business department. Generally referred to as the route department, it's used for calculating sales for specific routes.",
+                "type": "varchar"
+            },
+            {
+                "col": "manager_id",
+                "col_desc": "Represents the unique ID of a manager (salesperson). For example, an ID like '257802' represents a specific manager, allowing tracking of customer management and performance by manager.",
+                "type": "varchar"
+            },
+            {
+                "col": "manager_name",
+                "col_desc": "Represents the name of the manager (salesperson). For example, 'Manager_3' refers to a specific salesperson, helping to manage sales performance by individual managers.",
+                "type": "varchar"
+            },
+            {
+                "col": "head_office_code",
+                "col_desc": "Represents the unique code of the head office, an ID distinguishing top-level customer locations. For example, '22972' represents a specific head office and is used for analyzing sales based on head offices.",
+                "type": "varchar"
+            },
+            {
+                "col": "head_office_name",
+                "col_desc": "Represents the name of the head office. The head office manages franchises and has regular franchises as customers. This allows categorization of customers and sales based on head offices.",
+                "type": "varchar"
+            },
+            {
+                "col": "customer_id",
+                "col_desc": "Represents the unique ID of a customer. For example, '229721002' refers to a specific customer. This is used for managing sales and profits by individual customers.",
+                "type": "varchar"
+            },
+            {
+                "col": "customer_name",
+                "col_desc": "Represents the name of the customer. For example, 'ABC Trading' is the name of a specific customer. This allows checking detailed sales records for each customer.",
+                "type": "varchar"
+            },
+            {
+                "col": "product_number",
+                "col_desc": "Represents the unique number of a product. For example, '104415' refers to a specific product. This is useful for tracking and managing sales for each product.",
+                "type": "varchar"
+            },
+            {
+                "col": "product_name",
+                "col_desc": "Represents the name of the product, including specific product names like 'Choco Pie'. This is useful for analyzing sales performance by product.",
+                "type": "varchar"
+            },
+            {
+                "col": "large_product_category",
+                "col_desc": "Represents the ID of the large product category, belonging to the highest level in the product classification system. This allows analysis of sales by major categories.",
+                "type": "varchar"
+            },
+            {
+                "col": "large_product_category_name",
+                "col_desc": "Represents the name of the large product category, allowing performance analysis by major categories.",
+                "type": "varchar"
+            },
+            {
+                "col": "middle_product_category",
+                "col_desc": "Represents the unique ID of the middle product category.",
+                "type": "varchar"
+            },
+            {
+                "col": "middle_product_category_name",
+                "col_desc": "Represents the name of the middle product category, allowing more detailed sales analysis by product groups.",
+                "type": "varchar"
+            },
+            {
+                "col": "small_product_category",
+                "col_desc": "Represents the unique ID of the small product category, belonging to a detailed product classification.",
+                "type": "varchar"
+            },
+            {
+                "col": "small_product_category_name",
+                "col_desc": "Represents the name of the small product category, allowing more specific analysis of sales performance by product.",
+                "type": "varchar"
+            },
+            {
+                "col": "detailed_product_category",
+                "col_desc": "Represents the unique ID of the detailed product category, belonging to the most specific classification system.",
+                "type": "varchar"
+            },
+            {
+                "col": "detailed_product_category_name",
+                "col_desc": "Represents the name of the detailed product category. For example, 'Dark Chocolate' refers to a specific product group. This allows for more detailed analysis of sales performance.",
+                "type": "varchar"
+            },
+            {
+                "col": "pb_div_cd",
+                "col_desc": "Represents the code distinguishing private brand (PB) products, referring to the company's own products. This allows sales analysis based on PB types.",
+                "type": "varchar"
+            },
+            {
+                "col": "pb_div_nm",
+                "col_desc": "Represents the name of the private brand (PB) product category. For example, PB refers to the company's own products, allowing sales analysis by distinguishing product brand types.",
+                "type": "varchar"
+            },
+            {
+                "col": "sales_value_at_handling_reference",
+                "col_desc": "This column represents the sales amount for individual items and is used for calculating total sales or sales totals for specific periods. **The values in this column can be aggregated using the SUM function to calculate overall sales, total sales, total sales amount, or total sales value.** For example, '500000' means sales of 500,000 won. It can be used for aggregate questions related to 'total sales' or 'overall sales'. This column represents the sales amount itself, unlike the 'sales profit amount' column.",
+                "type": "float"
+            },
+            {
+                "col": "sales_profit_amount",
+                "col_desc": "This column represents the **sales profit (net profit)**, meaning the actual profit remaining after deducting costs from the total sales. Therefore, it does not represent gross sales, sales amount, total sales amount, or overall sales value. This column does not mean sales itself, but the final profit generated from sales. For example, '100000' means a net profit of 100,000 won. **When querying sales itself, other sales amount-related columns should be used, and this column should only be used for profit analysis or net profit aggregation. It should not be used for simple sales queries.**",
+                "type": "float"
+            }
+        ]
+    }
+}

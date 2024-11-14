@@ -433,7 +433,7 @@ function DownloadButton({ chartRef, title }: { chartRef: React.RefObject<HTMLDiv
   );
 }
 
-export function ChartRenderer({ data }: { data: ChartData }) {
+export const ChartRenderer = React.memo(({ data }: { data: ChartData }) => {
   const chartRef = useRef<HTMLDivElement>(null);
 
   const ChartComponent = (() => {
@@ -463,4 +463,4 @@ export function ChartRenderer({ data }: { data: ChartData }) {
       <ChartComponent data={data} />
     </div>
   );
-}
+});

@@ -1,8 +1,9 @@
 "use client";
+import Link from 'next/link';
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { Moon, Sun, Trash2 } from "lucide-react";
+import { Moon, Sun, Trash2, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu,
@@ -17,7 +18,7 @@ interface TopNavBarProps {
     showViewModeSelector?: boolean;
     showPromptCaching?: boolean;
   };
-  onReset?: () => void; // Add this line
+  onReset?: () => void; 
 }
 
 const TopNavBar: React.FC<TopNavBarProps> = ({ features = {}, onReset }) => {

@@ -137,37 +137,30 @@ export default function AIChat() {
     });
   }, []);
 
+  const syncScroll = useCallback((index: number) => {
+    setCurrentChartIndex(index);
+    setCurrentQueryIndex(index);
+    scrollToChart(index);
+  }, []);
+  
   const handleChartScroll = useCallback(() => {
     if (!contentRef.current) return;
-
+  
     const { scrollTop, clientHeight } = contentRef.current;
     const newIndex = Math.round(scrollTop / clientHeight);
-    setCurrentChartIndex(newIndex);
-  }, []);
+    if (newIndex !== currentChartIndex) {
+      syncScroll(newIndex);
+    }
+  }, [currentChartIndex, syncScroll]); 
 
-  const scrollToChart = (index: number) => {
+  const scrollToChart = useCallback((index: number) => {
     if (!contentRef.current) return;
     contentRef.current.scrollTo({
       top: index * contentRef.current.clientHeight,
       behavior: "smooth"
     });
-  };
-
-  const syncScroll = (index: number) => {
-    setCurrentChartIndex(index);
-    setCurrentQueryIndex(index);
-    scrollToChart(index);
-    scrollToQuery(index);
-  };
+  }, []);
   
-  const scrollToQuery = (index: number) => {
-    if (!queryContentRef.current) return;
-    queryContentRef.current.scrollTo({
-      top: index * queryContentRef.current.clientHeight,
-      behavior: "smooth"
-    });
-  };
-
   useEffect(() => {
     const scrollToNewestChart = () => {
       const chartsCount = messages.filter((m) => m.chartData).length;
@@ -274,6 +267,10 @@ export default function AIChat() {
 
   const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const startTime = performance.now();
+    let analyzeTime = 0;
+    let visualizeTime = 0;
+
     if (!input.trim() && !currentUpload) return;
     if (isLoading) return;
   
@@ -347,7 +344,7 @@ export default function AIChat() {
 
       if (answeringTool === 'db') { // Database Access
         console.log("Database access is requested");
-        
+        const analyzeStartTime = performance.now();
         const analyzeResponse = await fetch("http://localhost:8000/analyze", {
           method: "POST",
           headers: {
@@ -365,9 +362,11 @@ export default function AIChat() {
         }
 
         const analyzeData: AnalyzeAPIResponse = await analyzeResponse.json();        
-    
+        const analyzeEndTime = performance.now();
+        analyzeTime = analyzeEndTime - analyzeStartTime;
+
         if (analyzeData.stopReason === 'tool_use' && analyzeData.result.length > 0) {
-          setQueryDetails((prev) => [...prev, analyzeData]);
+          setQueryDetails((prev) => [...prev, {...analyzeData, originalQuestion: input}]);
 
           const updatedApiMessages = [
             ...apiMessages,
@@ -405,7 +404,7 @@ export default function AIChat() {
             }
           ];
 
-  
+          const visualizeStartTime = performance.now();
           const visualizeResponse = await fetch("/api/visualize", {
             method: "POST",
             headers: {
@@ -434,9 +433,12 @@ export default function AIChat() {
           } else {
             throw new Error(`Visualize API error! status: ${visualizeResponse.status}`);
           }
+          const visualizeEndTime = performance.now();
+          visualizeTime = visualizeEndTime - visualizeStartTime;
         } 
       } else if (answeringTool === 'file') {  // File Access
         console.log("File processing is requested");
+        const visualizeStartTime = performance.now();
         const visualizeResponse = await fetch("/api/visualize", {
           method: "POST",
           headers: {
@@ -498,6 +500,8 @@ export default function AIChat() {
             ]
           }
         ]);
+        const visualizeEndTime = performance.now();
+        visualizeTime = visualizeEndTime - visualizeStartTime;
       } else if (answeringTool === 'chat') {
         console.log("General chat response");
         setMessages((prev) => [
@@ -528,6 +532,12 @@ export default function AIChat() {
       if (fileInputRef.current) {
         fileInputRef.current.value = ''; 
       }
+
+      const endTime = performance.now(); 
+      const totalExecutionTime = endTime - startTime; 
+      console.log(`Total run time: ${totalExecutionTime.toFixed(2)}ms`);
+      console.log(`Analyze time: ${analyzeTime.toFixed(2)}ms`);
+      console.log(`Visualize time: ${visualizeTime.toFixed(2)}ms`);
 
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({
@@ -566,7 +576,7 @@ export default function AIChat() {
   return (
     <div className="flex flex-col h-screen">
       <TopNavBar
-        features={{showDomainSelector: false, showViewModeSelector: false, showPromptCaching: false }}
+        features={{showDomainSelector: false, showViewModeSelector: false, showPromptCaching: false}}
         onReset={handleReset}
       />
 
@@ -594,14 +604,7 @@ export default function AIChat() {
         <QueryDetails 
           queryDetails={queryDetails}
           currentQueryIndex={currentQueryIndex}
-          onScroll={() => {
-            if (!queryContentRef.current) return;
-            const { scrollTop, clientHeight } = queryContentRef.current;
-            const newIndex = Math.round(scrollTop / clientHeight);
-            if (newIndex !== currentQueryIndex) {
-              syncScroll(newIndex);
-            }
-          }}
+          userInput={input}
         />
 
         {/* Content Area */}

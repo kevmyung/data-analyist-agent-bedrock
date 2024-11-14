@@ -9,12 +9,13 @@ from boto3 import Session
 from botocore.config import Config
 import logging
 from fastapi.middleware.cors import CORSMiddleware
+from .libs.opensearch import OpenSearch_Manager
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.abspath(os.path.join(current_dir, '..', '..', '..'))
 db_path = os.path.join(root_dir, 'sample.db')
 schema_path = os.path.join(root_dir, 'db_schema.json')
-table_name = 'sales_table'
+table_name = 'food_sales_table'
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -47,7 +48,6 @@ class AnalyzeResponse(BaseModel):
     toolName: Optional[str] = None
     stopReason: str
 
-
 def create_bedrock_client(region):
     session = Session()
     config = Config(region_name=region)
@@ -58,10 +58,54 @@ def get_sample_data():
     cursor = conn.cursor()
     cursor.execute(f"SELECT * FROM {table_name} LIMIT 3")
     columns = [description[0] for description in cursor.description]
-    data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    rows = cursor.fetchall()
     conn.close()
-    return data
 
+    sample_data = {col: [] for col in columns}
+    for row in rows:
+        for col, value in zip(columns, row):
+            sample_data[col].append(value)
+
+    return sample_data
+
+def get_sample_queries(messages, region):
+    try:
+        last_message = messages[-1]
+        if last_message.role == 'user' and isinstance(last_message.content, list):
+            for content_item in last_message.content:
+                if isinstance(content_item, dict) and 'text' in content_item:
+                    question = content_item['text']
+                    break
+            else:
+                question = None
+        else:
+            question = None
+
+        if question is None:
+            return "No valid question found in the last message."
+        
+        os_manager = OpenSearch_Manager(region)
+        search_results = os_manager.retrieve_search_results(question, "sample_queries", 5)
+
+        if not search_results:
+            return "No sample queries found for the given question."
+
+        formatted_results = "" 
+        for idx, result in enumerate(search_results, 1):
+            formatted_results += f"""
+        <sample {idx}>
+        Question: {result['question']}
+        SQL: {result['sql_query']}
+        </sample {idx}>\n
+        """
+        return formatted_results
+    
+    except Exception as e:
+        logger.error(f"Error in get_sample_queries: {str(e)}")
+        return f"Error occurred while fetching sample queries: {str(e)}"
+    
+    
+    
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest):
     try:
@@ -71,23 +115,24 @@ async def analyze(request: AnalyzeRequest):
             raise HTTPException(status_code=400, detail="Model selection is required")
         if not request.region:
             raise HTTPException(status_code=400, detail="Region selection is required")
-
+        
         bedrock_client = create_bedrock_client(request.region)
+        sample_queries = get_sample_queries(request.messages, request.region)
 
         with open(schema_path, 'r') as f:
             table_schema = json.load(f)
 
+        dialect = "SQLite"
         sample_data = get_sample_data()
 
-        system_prompt = f"""You are a helpful assistant. When answering questions, if the information can be obtained from the database, use the generate_sql_query tool to create an SQL query with a given user's question and table schema. 
-        If not, provide a direct answer without using the tool. Always be concise and clear in your responses.
+        system_prompt = f"""You are an {dialect} expert. 
+        Your role is to generate an SQL query with the generate_sql_query tool to create based on the user's question and table schema. 
 
 Always:
-- Analyze the user's question carefully.
-- Use the columns from the provided table schema.
-- Ensure the SQL query is syntactically correct.
-- Use appropriate SQL functions and clauses.
-- Use the table name '{table_name}' in your queries.
+- Use the table name '{table_name}'.
+- Adhere to the provided table schema.
+- Carefully study and leverage the sample queries provided, adapting them to match the specific user question.
+- Ensure SQL syntax correctness for {dialect}.
 
 Never:
 - Include any additional information in your responses.
@@ -96,12 +141,18 @@ Never:
 
 Focus on providing the correct SQL query that answers the user's question.
 
-Here is the table schema for the table '{table_name}':
+<table_scema>
 {json.dumps(table_schema, indent=2)}
+</table_scema>
 
-Here are some sample data for the table '{table_name}':
+<sample_data>
 {json.dumps(sample_data, indent=2)}
+</sample_data>
+
+<sample_queries>
 """
+        
+        system_prompt += sample_queries + "</sample_queries>"
 
         tool_config = {
             "tools": [{
@@ -121,8 +172,8 @@ Here are some sample data for the table '{table_name}':
                 }
             }]
         }
-
-        logger.info(f"Analyze API request: {request.messages}")
+        logger.info(f"Analyze API request - 1: {system_prompt}")
+        logger.info(f"Analyze API request - 2: {request.messages}")
 
         response = bedrock_client.converse(
             modelId=request.model,
