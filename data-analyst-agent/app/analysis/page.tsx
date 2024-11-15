@@ -1,5 +1,5 @@
 // app/analysis/page.tsx
-"use client";
+//"use client";
 import { v4 as uuidv4 } from "uuid";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -356,7 +356,7 @@ export default function AIChat() {
             region: selectedRegion,
           }),
         });
-
+    
         if (!analyzeResponse.ok) {
           throw new Error(`Analyze API error! status: ${analyzeResponse.status}`);
         }

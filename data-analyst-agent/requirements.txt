@@ -3,5 +3,6 @@ uvicorn
 pydantic
 boto3
 botocore
-sqlite3
 typing-extensions
+python-dotenv
+opensearch-py

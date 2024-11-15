@@ -105,10 +105,10 @@ def get_sample_queries(messages, region):
         return f"Error occurred while fetching sample queries: {str(e)}"
     
     
-    
 @app.post("/analyze")
 async def analyze(request: AnalyzeRequest):
     try:
+        logger.info(f"Debug")
         if not request.messages:
             raise HTTPException(status_code=400, detail="Messages are required and must be a non-empty array")
         if not request.model:
@@ -250,4 +250,4 @@ Focus on providing the correct SQL query that answers the user's question.
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info", reload=True)
