@@ -101,7 +101,7 @@ def get_sample_queries(messages, region):
         return formatted_results
     
     except Exception as e:
-        logger.error(f"Error in get_sample_queries: {str(e)}")
+        logger.error(f"Sample queries not available: {str(e)}")
         return f"Error occurred while fetching sample queries: {str(e)}"
     
     
@@ -117,8 +117,13 @@ async def analyze(request: AnalyzeRequest):
             raise HTTPException(status_code=400, detail="Region selection is required")
         
         bedrock_client = create_bedrock_client(request.region)
-        sample_queries = get_sample_queries(request.messages, request.region)
 
+        try:
+            sample_queries = get_sample_queries(request.messages, request.region)
+        except Exception as e:
+            logger.warning(f"Failed to get sample queries: {str(e)}")
+            sample_queries = "Sample queries are not available."
+            
         with open(schema_path, 'r') as f:
             table_schema = json.load(f)
 
